@@ -48,7 +48,7 @@ def validate_corrections():
                 # Warn about inconsistent spacing
                 normalized = ",".join(p.strip() for p in parts)
                 if pattern != normalized:
-                    warnings.append(f"Line {i}: accent_pattern has spaces '{pattern}' → will be normalized to '{normalized}'")
+                    warnings.append(f"Line {i}: accent_pattern has spaces '{pattern}' -> will be normalized to '{normalized}'")
 
             # Validate goshu if present (includes symbol/unknown from UniDic)
             valid_goshu = {"wago", "kango", "gairaigo", "proper", "mixed", "symbol", "unknown", ""}

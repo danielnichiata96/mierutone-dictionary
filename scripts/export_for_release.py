@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Export pitch.db for public release.
 
 This script:
@@ -72,7 +73,7 @@ def apply_corrections(conn: sqlite3.Connection, corrections_path: Path) -> tuple
             )
             if cursor.rowcount > 0:
                 rows_updated += cursor.rowcount
-                print(f"  Applied: {row['surface']} ({row['reading']}) → type {accent_pattern} ({cursor.rowcount} row(s))")
+                print(f"  Applied: {row['surface']} ({row['reading']}) -> type {accent_pattern} ({cursor.rowcount} row(s))")
             else:
                 skipped += 1
                 print(f"  WARNING: No match for {row['surface']} ({row['reading']}) - correction not applied")
@@ -146,9 +147,12 @@ def main():
         print(f"Error: Source database not found at {args.source}")
         return 1
 
-    # Copy database
-    print(f"Copying {args.source} → {args.output}")
-    shutil.copy(args.source, args.output)
+    # Copy database (skip if same file)
+    if args.source.resolve() != args.output.resolve():
+        print(f"Copying {args.source} -> {args.output}")
+        shutil.copy(args.source, args.output)
+    else:
+        print(f"Using existing {args.output}")
 
     # Connect and apply corrections
     conn = sqlite3.connect(args.output)
@@ -168,7 +172,11 @@ def main():
     print("\nValidating...")
     issues = validate_database(conn)
     for issue in issues:
-        print(f"  {issue}")
+        # Handle Windows console encoding
+        try:
+            print(f"  {issue}")
+        except UnicodeEncodeError:
+            print(f"  {issue.encode('ascii', 'replace').decode('ascii')}")
 
     if not issues:
         print("  All checks passed!")
