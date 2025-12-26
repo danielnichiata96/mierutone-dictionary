@@ -24,9 +24,12 @@ cd mierutone-dictionary
 The source of truth is `data/corrections.csv`. Add your correction:
 
 ```csv
-surface,reading,accent_pattern,goshu,source,notes
-橋,はし,2,wago,NHK,was incorrectly 1
+surface,reading,accent_pattern,goshu,goshu_jp,source,notes
+橋,はし,2,wago,,NHK,was incorrectly 1
 ```
+
+> **Note**: `goshu_jp` is optional — it's auto-derived from `goshu` if omitted.
+> Multiple pitch patterns can be specified as `0,2`.
 
 ### 3. Validate your change
 

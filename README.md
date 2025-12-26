@@ -29,15 +29,17 @@ CREATE TABLE pitch_accents (
     id INTEGER PRIMARY KEY,
     surface TEXT NOT NULL,      -- Kanji/kana form (東京)
     reading TEXT NOT NULL,      -- Hiragana reading (とうきょう)
-    accent_pattern TEXT,        -- Pitch type: 0=heiban, 1=atamadaka, 2+=nakadaka
+    accent_pattern TEXT,        -- Pitch type: 0, 1, 2, or "0,2" for multiple
     goshu TEXT,                 -- Word origin: wago, kango, gairaigo, proper
-    goshu_jp TEXT,              -- Japanese label: 和語, 漢語, 外来語, 固有名詞
-    UNIQUE(surface, reading)
+    goshu_jp TEXT               -- Japanese label: 和語, 漢語, 外来語, 固有名詞
 );
 
 CREATE INDEX idx_surface ON pitch_accents(surface);
 CREATE INDEX idx_reading ON pitch_accents(reading);
 ```
+
+> **Note**: Some words have multiple valid pitch patterns (e.g., `accent_pattern = "0,2"`).
+> Some surface+reading pairs may appear more than once with different patterns.
 
 ## Pitch Accent Types
 

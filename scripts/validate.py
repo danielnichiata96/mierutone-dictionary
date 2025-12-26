@@ -37,10 +37,13 @@ def validate_corrections():
             if not row.get("accent_pattern"):
                 errors.append(f"Line {i}: Missing accent_pattern")
 
-            # Validate accent_pattern is numeric
+            # Validate accent_pattern (numeric, or comma-separated like "0,2")
             pattern = row.get("accent_pattern", "")
-            if pattern and not pattern.isdigit():
-                errors.append(f"Line {i}: accent_pattern '{pattern}' is not a number")
+            if pattern:
+                parts = pattern.split(",")
+                for part in parts:
+                    if not part.strip().isdigit():
+                        errors.append(f"Line {i}: accent_pattern '{pattern}' contains non-numeric value '{part}'")
 
             # Validate goshu if present
             valid_goshu = {"wago", "kango", "gairaigo", "proper", "mixed", ""}

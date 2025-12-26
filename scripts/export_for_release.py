@@ -18,25 +18,47 @@ import sqlite3
 from pathlib import Path
 
 
-def apply_corrections(conn: sqlite3.Connection, corrections_path: Path) -> int:
-    """Apply community corrections from CSV."""
+GOSHU_TO_JP = {
+    "wago": "和語",
+    "kango": "漢語",
+    "gairaigo": "外来語",
+    "proper": "固有名詞",
+    "mixed": "混種語",
+}
+
+
+def apply_corrections(conn: sqlite3.Connection, corrections_path: Path) -> tuple[int, int]:
+    """Apply community corrections from CSV.
+
+    Returns:
+        Tuple of (applied_count, skipped_count).
+    """
     if not corrections_path.exists():
         print(f"No corrections file at {corrections_path}")
-        return 0
+        return 0, 0
 
     applied = 0
+    skipped = 0
+
     with open(corrections_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            # Derive goshu_jp from goshu if not provided
+            goshu = row.get("goshu") or None
+            goshu_jp = row.get("goshu_jp") or (GOSHU_TO_JP.get(goshu) if goshu else None)
+
             cursor = conn.execute(
                 """
                 UPDATE pitch_accents
-                SET accent_pattern = ?, goshu = ?
+                SET accent_pattern = ?,
+                    goshu = COALESCE(?, goshu),
+                    goshu_jp = COALESCE(?, goshu_jp)
                 WHERE surface = ? AND reading = ?
                 """,
                 (
                     row["accent_pattern"],
-                    row.get("goshu") or None,
+                    goshu,
+                    goshu_jp,
                     row["surface"],
                     row["reading"],
                 ),
@@ -44,9 +66,12 @@ def apply_corrections(conn: sqlite3.Connection, corrections_path: Path) -> int:
             if cursor.rowcount > 0:
                 applied += 1
                 print(f"  Applied: {row['surface']} ({row['reading']}) → type {row['accent_pattern']}")
+            else:
+                skipped += 1
+                print(f"  WARNING: No match for {row['surface']} ({row['reading']}) - correction not applied")
 
     conn.commit()
-    return applied
+    return applied, skipped
 
 
 def export_to_csv(conn: sqlite3.Connection, output_path: Path) -> int:
@@ -77,13 +102,13 @@ def validate_database(conn: sqlite3.Connection) -> list[str]:
     if null_count > 0:
         issues.append(f"Warning: {null_count} entries with NULL accent_pattern")
 
-    # Check for invalid accent patterns
+    # Check for invalid accent patterns (allow comma-separated like "0,2")
     cursor = conn.execute(
-        "SELECT DISTINCT accent_pattern FROM pitch_accents WHERE accent_pattern NOT GLOB '[0-9]*'"
+        "SELECT DISTINCT accent_pattern FROM pitch_accents WHERE accent_pattern NOT GLOB '[0-9,]*'"
     )
     invalid = [row[0] for row in cursor if row[0]]
     if invalid:
-        issues.append(f"Warning: Non-numeric accent patterns: {invalid[:5]}")
+        issues.append(f"Warning: Invalid accent patterns: {invalid[:5]}")
 
     # Check entry count
     cursor = conn.execute("SELECT COUNT(*) FROM pitch_accents")
@@ -123,8 +148,8 @@ def main():
 
     corrections_path = Path("data/corrections.csv")
     print(f"\nApplying corrections from {corrections_path}...")
-    applied = apply_corrections(conn, corrections_path)
-    print(f"Applied {applied} corrections")
+    applied, skipped = apply_corrections(conn, corrections_path)
+    print(f"Applied {applied} corrections, {skipped} skipped (no match)")
 
     # Export to CSV
     csv_path = Path("pitch_accents.csv")
