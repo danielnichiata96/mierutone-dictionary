@@ -24,6 +24,8 @@ GOSHU_TO_JP = {
     "gairaigo": "外来語",
     "proper": "固有名詞",
     "mixed": "混種語",
+    "symbol": "記号",
+    "unknown": "不明",
 }
 
 
@@ -31,18 +33,23 @@ def apply_corrections(conn: sqlite3.Connection, corrections_path: Path) -> tuple
     """Apply community corrections from CSV.
 
     Returns:
-        Tuple of (applied_count, skipped_count).
+        Tuple of (rows_updated, corrections_skipped).
     """
     if not corrections_path.exists():
         print(f"No corrections file at {corrections_path}")
         return 0, 0
 
-    applied = 0
+    rows_updated = 0
     skipped = 0
 
     with open(corrections_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            # Normalize accent_pattern (remove spaces)
+            accent_pattern = row["accent_pattern"]
+            if "," in accent_pattern:
+                accent_pattern = ",".join(p.strip() for p in accent_pattern.split(","))
+
             # Derive goshu_jp from goshu if not provided
             goshu = row.get("goshu") or None
             goshu_jp = row.get("goshu_jp") or (GOSHU_TO_JP.get(goshu) if goshu else None)
@@ -56,7 +63,7 @@ def apply_corrections(conn: sqlite3.Connection, corrections_path: Path) -> tuple
                 WHERE surface = ? AND reading = ?
                 """,
                 (
-                    row["accent_pattern"],
+                    accent_pattern,
                     goshu,
                     goshu_jp,
                     row["surface"],
@@ -64,14 +71,14 @@ def apply_corrections(conn: sqlite3.Connection, corrections_path: Path) -> tuple
                 ),
             )
             if cursor.rowcount > 0:
-                applied += 1
-                print(f"  Applied: {row['surface']} ({row['reading']}) → type {row['accent_pattern']}")
+                rows_updated += cursor.rowcount
+                print(f"  Applied: {row['surface']} ({row['reading']}) → type {accent_pattern} ({cursor.rowcount} row(s))")
             else:
                 skipped += 1
                 print(f"  WARNING: No match for {row['surface']} ({row['reading']}) - correction not applied")
 
     conn.commit()
-    return applied, skipped
+    return rows_updated, skipped
 
 
 def export_to_csv(conn: sqlite3.Connection, output_path: Path) -> int:
@@ -148,8 +155,8 @@ def main():
 
     corrections_path = Path("data/corrections.csv")
     print(f"\nApplying corrections from {corrections_path}...")
-    applied, skipped = apply_corrections(conn, corrections_path)
-    print(f"Applied {applied} corrections, {skipped} skipped (no match)")
+    rows_updated, skipped = apply_corrections(conn, corrections_path)
+    print(f"Updated {rows_updated} rows, {skipped} corrections skipped (no match)")
 
     # Export to CSV
     csv_path = Path("pitch_accents.csv")
