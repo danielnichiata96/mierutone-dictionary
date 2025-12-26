@@ -1,0 +1,19 @@
+# Generated files (created by export script, released via GitHub Releases)
+pitch.db
+pitch_accents.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

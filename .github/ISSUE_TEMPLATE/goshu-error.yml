@@ -1,0 +1,52 @@
+name: Word Origin (Goshu) Error
+description: Report an incorrect word origin classification
+title: "[Goshu] "
+labels: ["goshu-error", "needs-verification"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report an incorrect word origin (goshu) classification.
+
+  - type: input
+    id: word
+    attributes:
+      label: Word
+      placeholder: "電話"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: current_goshu
+    attributes:
+      label: Current classification (incorrect)
+      options:
+        - wago (和語)
+        - kango (漢語)
+        - gairaigo (外来語)
+        - proper (固有名詞)
+        - mixed (混種語)
+        - unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: correct_goshu
+    attributes:
+      label: Correct classification
+      options:
+        - wago (和語)
+        - kango (漢語)
+        - gairaigo (外来語)
+        - proper (固有名詞)
+        - mixed (混種語)
+    validations:
+      required: true
+
+  - type: textarea
+    id: reasoning
+    attributes:
+      label: Reasoning
+      placeholder: "電話 is composed of 電 (electricity) + 話 (speech), both are on'yomi readings, making it kango."
+    validations:
+      required: true

@@ -1,0 +1,76 @@
+name: Pitch Accent Error
+description: Report an incorrect pitch accent pattern
+title: "[Pitch] "
+labels: ["pitch-error", "needs-verification"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a pitch accent error! Please fill in the details below.
+
+  - type: input
+    id: word
+    attributes:
+      label: Word (surface form)
+      description: The kanji or kana form of the word
+      placeholder: "橋"
+    validations:
+      required: true
+
+  - type: input
+    id: reading
+    attributes:
+      label: Reading (hiragana)
+      description: The hiragana reading
+      placeholder: "はし"
+    validations:
+      required: true
+
+  - type: input
+    id: current_pitch
+    attributes:
+      label: Current pitch type (incorrect)
+      description: The pitch type currently in the database
+      placeholder: "1"
+    validations:
+      required: true
+
+  - type: input
+    id: correct_pitch
+    attributes:
+      label: Correct pitch type
+      description: What the pitch type should be
+      placeholder: "2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: Source
+      description: How did you verify the correct pitch?
+      options:
+        - NHK Accent Dictionary
+        - OJAD (Online Japanese Accent Dictionary)
+        - Native speaker
+        - Other dictionary
+        - Personal knowledge
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Any context, links, or explanation
+      placeholder: "This is 橋 (bridge), not 箸 (chopsticks). The odaka pattern (type 2) is correct for the bridge meaning."
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have checked that this word exists in the database
+          required: true
+        - label: I understand regional variations exist and this is for Tokyo standard (標準語)
+          required: true

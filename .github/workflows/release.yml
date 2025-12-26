@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download source database
+        env:
+          PITCH_DB_URL: ${{ secrets.PITCH_DB_URL }}
+        run: |
+          # Download from private storage or copy from artifact
+          # This requires PITCH_DB_URL secret to be set
+          if [ -n "$PITCH_DB_URL" ]; then
+            curl -L "$PITCH_DB_URL" -o source_pitch.db
+          else
+            echo "PITCH_DB_URL not set - using placeholder"
+            exit 1
+          fi
+
+      - name: Apply corrections and export
+        run: |
+          python scripts/export_for_release.py --source source_pitch.db --output pitch.db
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.version }}
+          name: Release ${{ inputs.version }}
+          files: |
+            pitch.db
+            pitch_accents.csv
+          body: |
+            ## Japanese Pitch Accent Dictionary ${{ inputs.version }}
+
+            Download:
+            - `pitch.db` - SQLite database (~15MB)
+            - `pitch_accents.csv` - CSV export for non-SQLite users
+
+            See [README](https://github.com/${{ github.repository }}/blob/main/README.md) for usage.
+
+            ---
+            Used in [MieruTone](https://mierutone.com)
