@@ -25,6 +25,7 @@ BUILD_STEPS = [
     ("import_kanjium.py", "Import base Kanjium pitch accent data", True),
     ("import_goshu.py", "Add word origin (goshu) data", True),
     ("import_frequency.py", "Add Wikipedia frequency ranking", False),  # Optional
+    ("import_frequency_jmdict.py", "Add JMdict frequency ranking", False),  # Optional
     ("import_nhk.py", "Import supplementary Ajatt-Tools data", False),  # Optional
 ]
 

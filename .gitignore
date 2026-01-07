@@ -17,3 +17,8 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# JMdict (used for build only, not released)
+jmdict.db
+jmdict.db-shm
+jmdict.db-wal
