@@ -32,3 +32,12 @@ qa_*.csv
 qa_*.md
 *.pid
 scrape_*.log
+
+# Wadoku dictionary (download separately)
+wadoku-xml-*/
+wadoku-xml.tar.xz
+data/wadoku-xml-*/
+data/wadoku-xml.tar.xz
+
+# Docs (if local)
+docs/
