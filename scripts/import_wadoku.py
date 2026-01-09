@@ -420,6 +420,96 @@ def apply_to_kanjium(wadoku_entries: List[WadokuEntry], dry_run: bool = True) ->
     return stats
 
 
+def insert_new_entries(wadoku_entries: List[WadokuEntry], dry_run: bool = True) -> dict:
+    """Insert new Wadoku entries not in Kanjium database.
+
+    Args:
+        wadoku_entries: List of Wadoku entries.
+        dry_run: If True, don't actually modify database.
+
+    Returns:
+        Statistics about insertions.
+    """
+    conn = sqlite3.connect(str(KANJIUM_DB))
+    conn.row_factory = sqlite3.Row
+
+    # Get existing entries for deduplication
+    existing = set()
+    rows = conn.execute("SELECT surface, reading FROM pitch_accents").fetchall()
+    for row in rows:
+        existing.add((row["surface"], row["reading"]))
+
+    print(f"  Existing entries in database: {len(existing):,}")
+
+    stats = {
+        "inserted": 0,
+        "skipped_duplicate": 0,
+        "skipped_empty": 0,
+    }
+
+    batch = []
+    batch_size = 1000
+
+    for entry in wadoku_entries:
+        key = (entry.surface, entry.reading)
+
+        # Skip if already exists
+        if key in existing:
+            stats["skipped_duplicate"] += 1
+            continue
+
+        # Skip entries with empty/invalid data
+        if not entry.surface or not entry.reading or not entry.accents:
+            stats["skipped_empty"] += 1
+            continue
+
+        # Format accent pattern
+        accent_pattern = ",".join(str(a) for a in entry.accents)
+
+        batch.append((
+            entry.surface,
+            entry.reading,
+            accent_pattern,
+            None,  # goshu
+            None,  # goshu_jp
+            None,  # frequency_rank
+            "wadoku",  # data_source
+            70,  # confidence (Wadoku is reliable)
+            "Wadoku",  # verified_sources
+            None,  # variation_note
+        ))
+
+        # Mark as existing to prevent duplicates in same batch
+        existing.add(key)
+        stats["inserted"] += 1
+
+        # Insert in batches
+        if len(batch) >= batch_size:
+            if not dry_run:
+                conn.executemany("""
+                    INSERT INTO pitch_accents
+                    (surface, reading, accent_pattern, goshu, goshu_jp,
+                     frequency_rank, data_source, confidence, verified_sources, variation_note)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, batch)
+                conn.commit()
+            print(f"    Inserted {stats['inserted']:,} entries...")
+            batch = []
+
+    # Insert remaining batch
+    if batch and not dry_run:
+        conn.executemany("""
+            INSERT INTO pitch_accents
+            (surface, reading, accent_pattern, goshu, goshu_jp,
+             frequency_rank, data_source, confidence, verified_sources, variation_note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, batch)
+        conn.commit()
+
+    conn.close()
+    return stats
+
+
 def export_to_csv(wadoku_entries: List[WadokuEntry], output_path: Path) -> None:
     """Export Wadoku entries to CSV.
 
@@ -454,7 +544,12 @@ def main():
     parser.add_argument(
         "--apply", "-a",
         action="store_true",
-        help="Apply Wadoku data to Kanjium database"
+        help="Apply Wadoku data to Kanjium database (update existing entries)"
+    )
+    parser.add_argument(
+        "--add-new", "-n",
+        action="store_true",
+        help="Add new Wadoku entries not in Kanjium database"
     )
     parser.add_argument(
         "--export", "-e",
@@ -519,6 +614,18 @@ def main():
         print(f"  New patterns added: {apply_stats['patterns_added']:,}")
         print(f"  Entries updated: {apply_stats['confidence_updated']:,}")
         print(f"  Skipped (not in Kanjium): {apply_stats['skipped']:,}")
+        print("Done!")
+
+    # Add new entries if requested
+    if args.add_new:
+        print(f"\n{'=' * 50}")
+        print("Adding new Wadoku entries to Kanjium...")
+
+        insert_stats = insert_new_entries(wadoku_entries, dry_run=False)
+
+        print(f"  New entries inserted: {insert_stats['inserted']:,}")
+        print(f"  Skipped (already exists): {insert_stats['skipped_duplicate']:,}")
+        print(f"  Skipped (empty/invalid): {insert_stats['skipped_empty']:,}")
         print("Done!")
 
 
