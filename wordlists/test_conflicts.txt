@@ -1,0 +1,13 @@
+# Test words known to have conflicts
+# These words have multiple accent patterns
+
+難しい
+食べる
+美しい
+面白い
+嬉しい
+悲しい
+橋
+箸
+日本
+東京

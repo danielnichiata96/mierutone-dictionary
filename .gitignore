@@ -22,3 +22,13 @@ Thumbs.db
 jmdict.db
 jmdict.db-shm
 jmdict.db-wal
+
+# OJAD scraper (cache and logs)
+ojad_cache.db
+ojad_cache.json
+ojad_cache.json.bak
+ojad_scraper.log
+qa_*.csv
+qa_*.md
+*.pid
+scrape_*.log
