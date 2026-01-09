@@ -35,6 +35,71 @@ class WadokuEntry:
     reading: str  # Hiragana reading
     accents: List[int]  # Pitch accent positions
     pos: str  # Part of speech (if available)
+    devoiced_moras: List[int]  # Indices of devoiced moras (0-indexed)
+
+
+# Hiragana mora patterns for splitting
+MORA_PATTERN = re.compile(
+    r'[ぁ-ん][ゃゅょぁぃぅぇぉ]?|[ァ-ヴ][ャュョァィゥェォ]?|ー'
+)
+
+
+def parse_hatsuon_devoicing(hatsuon: str, reading: str) -> List[int]:
+    """Extract devoiced mora indices from hatsuon field.
+
+    Wadoku marks devoiced vowels with [Dev] before the mora.
+    Example: [Dev]くつ -> mora 0 (く) is devoiced
+
+    Args:
+        hatsuon: The hatsuon field with [Dev] markers
+        reading: Clean hiragana reading
+
+    Returns:
+        List of 0-indexed mora positions that are devoiced
+    """
+    if not hatsuon or '[Dev]' not in hatsuon:
+        return []
+
+    # Split reading into moras
+    moras = MORA_PATTERN.findall(reading)
+    if not moras:
+        return []
+
+    devoiced = []
+
+    # Clean hatsuon of other markers, keeping only [Dev] and kana
+    # Remove: < > ' ･ ・ ～ ~ 　 spaces, [Gr], [Akz], [Jo], numbers
+    clean = hatsuon
+    clean = re.sub(r'\[Gr\]', '', clean)
+    clean = re.sub(r'\[Akz\]', '', clean)
+    clean = re.sub(r'\[Jo\]', '', clean)
+    clean = re.sub(r'[<>\'･・～~　\s\d:,/＿]', '', clean)
+
+    # Now find [Dev] positions and map to moras
+    # Strategy: walk through clean string, track mora index
+    mora_idx = 0
+    i = 0
+    next_is_devoiced = False
+
+    while i < len(clean):
+        if clean[i:i+5] == '[Dev]':
+            # Mark that next mora is devoiced
+            next_is_devoiced = True
+            i += 5
+        else:
+            # Try to match a mora at this position
+            remaining = clean[i:]
+            match = MORA_PATTERN.match(remaining)
+            if match:
+                if next_is_devoiced and mora_idx < len(moras):
+                    devoiced.append(mora_idx)
+                    next_is_devoiced = False
+                mora_idx += 1
+                i += len(match.group())
+            else:
+                i += 1
+
+    return devoiced
 
 
 def parse_wadoku_xml(xml_path: Path) -> Iterator[WadokuEntry]:
@@ -117,6 +182,12 @@ def parse_wadoku_xml(xml_path: Path) -> Iterator[WadokuEntry]:
 
         reading = hira.text.strip()
 
+        # Get hatsuon (pronunciation with devoicing markers)
+        hatsuon_elem = reading_elem.find(f"{NS}hatsuon")
+        if hatsuon_elem is None:
+            hatsuon_elem = reading_elem.find("hatsuon")
+        hatsuon = hatsuon_elem.text if hatsuon_elem is not None and hatsuon_elem.text else ""
+
         # Get accent values
         accent_elems = reading_elem.findall(f"{NS}accent")
         if not accent_elems:
@@ -152,12 +223,16 @@ def parse_wadoku_xml(xml_path: Path) -> Iterator[WadokuEntry]:
             elif gram.find(f"{NS}fukushi") is not None or gram.find("fukushi") is not None:
                 pos = "副詞"
 
+        # Parse devoiced moras from hatsuon
+        devoiced = parse_hatsuon_devoicing(hatsuon, reading)
+
         yield WadokuEntry(
             entry_id=entry_id,
             surface=surface,
             reading=reading,
             accents=sorted(set(accents)),
             pos=pos,
+            devoiced_moras=devoiced,
         )
 
         # Clear element to free memory
@@ -404,12 +479,15 @@ def apply_to_kanjium(wadoku_entries: List[WadokuEntry], dry_run: bool = True) ->
         else:
             new_sources = verified_sources
 
+        # Format devoiced moras
+        devoiced_str = ",".join(str(i) for i in entry.devoiced_moras) if entry.devoiced_moras else ""
+
         if not dry_run:
             conn.execute("""
                 UPDATE pitch_accents
-                SET accent_pattern = ?, confidence = ?, verified_sources = ?
+                SET accent_pattern = ?, confidence = ?, verified_sources = ?, devoiced_moras = ?
                 WHERE id = ?
-            """, (new_pattern, new_confidence, new_sources, row["id"]))
+            """, (new_pattern, new_confidence, new_sources, devoiced_str, row["id"]))
 
         stats["confidence_updated"] += 1
 
@@ -463,8 +541,9 @@ def insert_new_entries(wadoku_entries: List[WadokuEntry], dry_run: bool = True) 
             stats["skipped_empty"] += 1
             continue
 
-        # Format accent pattern
+        # Format accent pattern and devoiced moras
         accent_pattern = ",".join(str(a) for a in entry.accents)
+        devoiced_str = ",".join(str(i) for i in entry.devoiced_moras) if entry.devoiced_moras else ""
 
         batch.append((
             entry.surface,
@@ -477,6 +556,7 @@ def insert_new_entries(wadoku_entries: List[WadokuEntry], dry_run: bool = True) 
             70,  # confidence (Wadoku is reliable)
             "Wadoku",  # verified_sources
             None,  # variation_note
+            devoiced_str,  # devoiced_moras
         ))
 
         # Mark as existing to prevent duplicates in same batch
@@ -489,8 +569,8 @@ def insert_new_entries(wadoku_entries: List[WadokuEntry], dry_run: bool = True) 
                 conn.executemany("""
                     INSERT INTO pitch_accents
                     (surface, reading, accent_pattern, goshu, goshu_jp,
-                     frequency_rank, data_source, confidence, verified_sources, variation_note)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     frequency_rank, data_source, confidence, verified_sources, variation_note, devoiced_moras)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, batch)
                 conn.commit()
             print(f"    Inserted {stats['inserted']:,} entries...")
@@ -501,8 +581,8 @@ def insert_new_entries(wadoku_entries: List[WadokuEntry], dry_run: bool = True) 
         conn.executemany("""
             INSERT INTO pitch_accents
             (surface, reading, accent_pattern, goshu, goshu_jp,
-             frequency_rank, data_source, confidence, verified_sources, variation_note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             frequency_rank, data_source, confidence, verified_sources, variation_note, devoiced_moras)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, batch)
         conn.commit()
 
